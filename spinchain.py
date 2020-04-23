@@ -81,9 +81,9 @@ def integrate_setup(N, h, Jx, Jy, Jz, gamma, leads):
         N_minus[-1] = sm * np.sqrt(gamma_l * (1 - mu))
         N_plus[-1] = sp * np.sqrt(gamma_l * (1 + mu))
         c_op_list.append(tensor(zero_minus))
-        c_op_list.append(tensor(zero_plus))
+        # c_op_list.append(tensor(zero_plus))
         # c_op_list.append(tensor(N_minus))
-        # c_op_list.append(tensor(N_plus))
+        c_op_list.append(tensor(N_plus))
     return H, sz_list, sx_list, c_op_list
 
 
@@ -100,19 +100,22 @@ def qutip_solver(H, psi0, tlist, c_op_list, sz_list, solver):
 
 def unitaries(H, c_op_list, dt):
     K = len(c_op_list)
-    prefactor = np.sqrt(1 / (2 * K))
     U_ops = []
-    for op in c_op_list:
-        exponent = 1j * H * dt
-        if op.isherm == False:
-            exponent += (dt * K / 2) * (op * op - op.dag() * op)
-        extra = 1j * np.sqrt(K * dt) * op
-        P1 = exponent + extra
-        P2 = exponent - extra
-        U_prop=prefactor*(P1.expm())
-        V_prop=prefactor*(P2.expm())
-        U_ops.append(U_prop)
-        U_ops.append(V_prop)
+    if K==0:
+        U_ops.append((1j*H*dt).expm())
+    else:
+        prefactor = np.sqrt(1 / (2 * K))
+        for op in c_op_list:
+            exponent = 1j * H * dt
+            if op.isherm == False:
+                exponent += (dt * K / 2) * (op * op - op.dag() * op)
+            extra = 1j * np.sqrt(K * dt) * op
+            P1 = exponent + extra
+            P2 = exponent - extra
+            U_prop=prefactor*(P1.expm())
+            V_prop=prefactor*(P2.expm())
+            U_ops.append(U_prop)
+            U_ops.append(V_prop)
     return U_ops
 
 def overlap(psi_list):
@@ -137,15 +140,17 @@ def orthogonalise(psi_list, U, zeroobj, rank):
     U = U.T
     if rank > len(psi_list):
         rank = len(psi_list)
+    norm = 0
     for i in range(rank):
-        norm = 0
         g = zeroobj
         for j in range(len(psi_list)):
             # print(U[i,j])
             # print(psi_list[j].dims)
             g_unit = U[i, j] * psi_list[j]
             g += g_unit
+        norm+=g.norm()**2
         g_list.append(g)
+    g_list=[g/np.sqrt(norm) for g in g_list]
     return g_list
 
 def one_step(psis,U_ops,zeropsi,rank):
@@ -163,16 +168,30 @@ def one_step(psis,U_ops,zeropsi,rank):
         new_psis = orthogonalise(new_psis, v, zeropsi, rank)
     return new_psis
 
+def expectations(psis,ops,normalise):
+    expecs=[]
+    for op in ops:
+        expec=0
+        norm=0
+        for psi in psis:
+            expec+=expect(op,psi)
+            if normalise:
+                norm+=psi.norm()
+        if normalise:
+            expec=expec/norm
+        expecs.append(expec)
+    return expecs
+
 # set up the calculation
 #
-solver = "me"  # use the ode solver
-# solver = "mc"   # use the monte-carlo solver
+# solver = "me"  # use the ode solver
+solver = "mc"   # use the monte-carlo solver
 
 N = 12  # number of spins
 
 # array of spin energy splittings and coupling strengths. here we use
 # uniform parameters, but in general we don't have too
-h = 0 * 2 * np.pi * np.ones(N)
+h = 0.1 * 2 * np.pi * np.ones(N)
 Jz = 0.1 * 2 * np.pi * np.ones(N)
 Jx = 0.1 * 2 * np.pi * np.ones(N)
 # Jx = 0 * 2 * np.pi * np.ones(N)
@@ -186,7 +205,7 @@ gamma = dephase * np.ones(N)
 leads = np.zeros(2)
 # bath coupling
 bath_couple = 0.1
-driving = 0.2
+driving = 1
 leads[0] = bath_couple
 # driving
 leads[1] = driving
@@ -212,9 +231,9 @@ for n in range(N):
 psi0 = tensor(psi_list)
 zeropsi=tensor(zero_list)
 # print(zeropsi)
-steps = 2 * 400
-tlist, deltat = np.linspace(0, 200, steps, retstep=True)
-rank=8
+steps = 1000
+tlist, deltat = np.linspace(0, 20, steps, retstep=True)
+rank=2
 H, sz_list, sx_list, c_op_list = integrate_setup(N, h, Jx, Jy, Jz, gamma, leads)
 U_ops= unitaries(H,c_op_list,deltat)
 end=time.time()
@@ -222,59 +241,77 @@ print('operators built! Time taken %.3f seconds' % (end-start))
 psis=[psi0]
 
 # visualise sparsity
-loop_start=time.time()
-for j in range(0,50):
-    psis=one_step(psis,U_ops,zeropsi,rank)
-    newend = time.time()
-    start=time.time()
-    norms=[psi.norm()**2 for psi in psis]
-    norm=np.sum(norms)
-    psi_list = [psi/np.sqrt(norm) for psi in psis]
-    end=time.time()
-    print('Normalisation done. Time taken %.5f seconds' % (end-start))
-loop_end=time.time()
-# psi_list = [psi for psi in psis]
-print('50 steps done. Time taken %.5f seconds' % (loop_end - loop_start))
+# loop_start=time.time()
+# for j in range(0,50):
+#     psis=one_step(psis,U_ops,zeropsi,rank)
+#     newend = time.time()
+#     start=time.time()
+#     norms=[psi.norm()**2 for psi in psis]
+#     norm=np.sum(norms)
+#     psi_list = [psi/np.sqrt(norm) for psi in psis]
+#     end=time.time()
+#     print('Normalisation done. Time taken %.5f seconds' % (end-start))
+# loop_end=time.time()
+# # psi_list = [psi for psi in psis]
+# print('50 steps done. Time taken %.5f seconds' % (loop_end - loop_start))
 
-mat = overlap(psi_list)
-print(np.sum(np.diag(mat)))
-fig, ax = plt.subplots()
-ax.matshow(mat.real, cmap='seismic')
+# mat = overlap(psi_list)
+# print(np.sum(np.diag(mat)))
+# fig, ax = plt.subplots()
+# ax.matshow(mat.real, cmap='seismic')
+#
+# for (i, j), z in np.ndenumerate(mat.real):
+#     ax.text(j, i, '{:0.5f}'.format(z), ha='center', va='center')
+#
+#
+# # plt.spy(mat,markersize=2,precision=10**(-6))
+#
+# plt.show()
 
-for (i, j), z in np.ndenumerate(mat.real):
-    ax.text(j, i, '{:0.5f}'.format(z), ha='center', va='center')
-
-
-# plt.spy(mat,markersize=2,precision=10**(-6))
-
-plt.show()
-
-print('one step calculated! Time taken %.3f seconds' % (newend - end))
 
 # print(psis)
 
 
+sz_expt = qutip_solver(H, psi0, tlist, c_op_list, sz_list+sx_list, solver)
+loop_start=time.time()
+s_rank=[]
+psi_times=[]
+time_psis=[]
+for j in tqdm(range(steps)):
+    # s_rank.append(expectations(psis,sz_list+sx_list))
+    time_psis.append(psis)
+    psis=one_step(psis,U_ops,zeropsi,rank)
+    # norms=[psi.norm()**2 for psi in psis]
+    # norm=np.sum(norms)
+    # psis = [psi/np.sqrt(norm) for psi in psis]
+loop_end=time.time()
+# psi_list = [psi for psi in psis]
+print('Low rank propagation done. Time taken %.5f seconds' % (loop_end - loop_start))
 
-# for j in range(len(c_op_list)):
-#     print(c_op_list[j].isherm)
-# sz_expt = qutip_solver(H, psi0, tlist, c_op_list, sz_list + sx_list, solver)
-#
-# fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 6))
-# sz_tot = np.zeros(len(sz_expt[0]))
-# for n in range(N):
-#     sz_tot += sz_expt[n]
-#
-# for n in range(N):
-#     ax1.plot(tlist, np.real(sz_expt[n]), label='$\\langle\\sigma_z^{(%d)}\\rangle$' % n)
-#     ax2.plot(tlist, np.real(sz_expt[N + n]), label='$\\langle\\sigma_x^{(%d)}\\rangle$' % n)
-# ax1.legend(loc=0)
-# ax2.set_xlabel('Time [ns]')
-# ax1.set_ylabel('$\\langle\sigma_z\\rangle$')
-# ax2.set_ylabel('$\\langle\sigma_x\\rangle$')
-# ax2.legend()
-#
-# ax1.set_title('Dynamics of a Heisenberg spin chain')
-# plt.show()
+for psis in time_psis:
+    s_rank.append(expectations(psis,sz_list+sx_list,False))
+s_rank=np.array(s_rank)
+print(s_rank.size)
+# print(np.array(s_rank))
+print(s_rank[:,0])
+fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 6))
+sz_tot = np.zeros(len(sz_expt[0]))
+for n in range(N):
+    sz_tot += sz_expt[n]
+
+for n in range(N):
+    ax1.plot(tlist, np.real(sz_expt[n]), label='$\\langle\\sigma_z^{(%d)}\\rangle$' % n)
+    ax1.plot(tlist, np.real(s_rank[:,n]), linestyle='--',label='Low-rank $\\langle\\sigma_z^{(%d)}\\rangle$' % n)
+    ax2.plot(tlist, np.real(sz_expt[N + n]), label='$\\langle\\sigma_x^{(%d)}\\rangle$' % n)
+    ax2.plot(tlist, np.real(s_rank[:,N + n]),linestyle='--', label='Low-rank $\\langle\\sigma_x^{(%d)}\\rangle$' % n)
+ax1.legend(loc=0)
+ax2.set_xlabel('Time [ns]')
+ax1.set_ylabel('$\\langle\sigma_z\\rangle$')
+ax2.set_ylabel('$\\langle\sigma_x\\rangle$')
+ax2.legend()
+
+ax1.set_title('Dynamics of a Heisenberg spin chain')
+plt.show()
 #
 # plt.plot(tlist, sz_tot)
 # plt.xlabel('Time [ns]')
