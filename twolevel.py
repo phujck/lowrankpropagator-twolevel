@@ -234,7 +234,7 @@ psis = one_step([psi_0], epsilon, delta, gamma, dt)
 print(psis[0])
 print(psis[1])
 
-N = 1000
+N = 500
 times, dt = np.linspace(0, 25, N, retstep=True)
 print("timestep")
 print(dt)
