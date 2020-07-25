@@ -93,7 +93,7 @@ def qutip_solver(H, psi0, tlist, c_op_list, sz_list, solver):
     if solver == "me":
         result = mesolve(H, psi0, tlist, c_op_list, sz_list, progress_bar=True)
     elif solver == "mc":
-        ntraj = 5000
+        ntraj = 1000
         result = mcsolve(H, psi0, tlist, c_op_list, sz_list, ntraj, progress_bar=True)
 
     return result.expect
@@ -195,8 +195,7 @@ def expectations(psis,ops,normalise):
 solver = "me"  # use the ode solver
 # solver = "mc"   # use the monte-carlo solver
 
-N = 10 # number of spins
-
+N = 6 # number of spins
 # array of spin energy splittings and coupling strengths. here we use
 # uniform parameters, but in general we don't have too
 h = 0.1 * 2 * np.pi * np.ones(N)
@@ -204,11 +203,11 @@ Jz = 0.1 * 2 * np.pi * np.ones(N)
 Jx = 0.1 * 2 * np.pi * np.ones(N)
 # Jx = 0 * 2 * np.pi * np.ones(N)
 Jy = 0.1 * 2 * np.pi * np.ones(N)
+init='other'
 # dephasing rate
 # gamma = 0.01 * np.ones(N)
 dephase = 0
 gamma = dephase * np.ones(N)
-
 # leads coupling
 leads = np.zeros(2)
 # bath coupling
@@ -227,22 +226,28 @@ zero_ket=Qobj([[0], [0]])
 #     psi_list.append(basis(2,0))
 
 start=time.time()
+
+
+
 for n in range(N):
-    # psi_list.append(basis(2, 0))
-    psi_list.append((basis(2, 0) + basis(2, 1)).unit())
+    if init=='xbasis':
+        psi_list.append((basis(2, 0) + basis(2, 1)).unit())
+    elif init=='mixed':
+        if n %2 ==0:
+            psi_list.append(basis(2,0))
+        else:
+            psi_list.append(basis(2,1))
+    else:
+        psi_list.append(basis(2, 0))
     zero_list.append(zero_ket)
 
-# for n in range(N):
-#     if n %2 ==0:
-#         psi_list.append(basis(2,0))
-#     else:
-#         psi_list.append(basis(2,1))
+
 psi0 = tensor(psi_list)
 zeropsi=tensor(zero_list)
 # print(zeropsi)
 steps = 1000
 tlist, deltat = np.linspace(0, 500, steps, retstep=True)
-rank=8
+rank=64
 H, sz_list, sx_list, c_op_list = integrate_setup(N, h, Jx, Jy, Jz, gamma, leads)
 U_ops= unitaries(H,c_op_list,deltat)
 end=time.time()
