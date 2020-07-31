@@ -214,7 +214,7 @@ def rho(psi_list):
         # rhoj=ket2dm(psi)
         # print(rhoj)
         rho += ket2dm(psi)
-        # rho=rho.unit()
+    # rho=rho.unit()
     # print('rho is')
     # print(rho)
 
@@ -227,7 +227,7 @@ epsilon = 1
 delta = 1
 gamma = 0.1
 gamma1 = gamma
-gamma2 = 0.2
+gamma2 = 1e-10
 rho_0 = fock_dm(2, 0)
 psi_0 = basis(2, 0)
 psis = one_step([psi_0], epsilon, delta, gamma, dt)
@@ -235,7 +235,7 @@ print(psis[0])
 print(psis[1])
 
 N = 500
-times, dt = np.linspace(0, 25, N, retstep=True)
+times, dt = np.linspace(0, 15, N, retstep=True)
 print("timestep")
 print(dt)
 
@@ -246,7 +246,7 @@ sx = sigmax()
 expect = evolution(delta, epsilon, gamma1, gamma2, rho_0, times)
 expect_unaltered = evolution(delta, epsilon, 0, 0, rho_0, times)
 
-for rank in [1, 2]:
+for rank in [2,4]:
     psi_list = [psi_0]
     z_track = []
     x_track = []
