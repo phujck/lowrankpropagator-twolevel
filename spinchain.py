@@ -312,9 +312,9 @@ def lowrank_sim(rank,run_lowrank):
 # mc_sim(ntraj,run_mc)
 # lowrank_sim(rank,run_lowrank)
 """batch runs"""
-for N in range(12,15):
-    for dephase in [0,1e-4,1e-3,1e-2]:
-        for bath_couple in [1e-4,1e-3,1e-2]:
+for N in range(2,13):
+    for dephase in [0,1e-4,1e-3]:
+        for bath_couple in [1e-4,1e-3]:
             print('now running for {}-sites, {:.2f}-dephasing, {:.2f}-Gamma'.format(N,dephase,bath_couple))
             h = h_param * np.ones(N)
             Jz = Jz_param * np.ones(N)
@@ -358,7 +358,7 @@ for N in range(12,15):
             psis = [psi0]
 
             exact_sim(run_exact)
-            for ntraj in [100,1000,5000,10000]:
+            for ntraj in [100,1000,5000]:
                 print('now running for {}-sites, {:.2f}-dephasing, {:.2f}-Gamma'.format(N, dephase, bath_couple))
                 print('now running monte-carlo {}-trajectories'.format(ntraj))
                 mc_sim(ntraj, run_mc)
