@@ -4,7 +4,8 @@ import matplotlib.pyplot as plt
 from tqdm import tqdm
 from numba import njit
 import time
-
+from params import *
+import os
 params = {
     'axes.labelsize': 30,
     # 'legend.fontsize': 28,
@@ -17,7 +18,11 @@ params = {
 }
 
 plt.rcParams.update(params)
-
+threads = 20
+os.environ['NUMEXPR_MAX_THREADS'] = '{}'.format(threads)
+os.environ['NUMEXPR_NUM_THREADS'] = '{}'.format(threads)
+os.environ['OMP_NUM_THREADS'] = '{}'.format(threads)
+os.environ['MKL_NUM_THREADS'] = '{}'.format(threads)
 
 def integrate_setup(N, h, Jx, Jy, Jz, gamma, leads):
     si = qeye(2)
@@ -78,22 +83,24 @@ def integrate_setup(N, h, Jx, Jy, Jz, gamma, leads):
         N_minus = op_list.copy()
         N_plus = op_list.copy()
         zero_minus[0] = sm * np.sqrt(gamma_l * (1 + mu))
-        zero_plus[0] = sp * np.sqrt(gamma_l * (1 - mu))
-        N_minus[-1] = sm * np.sqrt(gamma_l * (1 - mu))
         N_plus[-1] = sp * np.sqrt(gamma_l * (1 + mu))
         c_op_list.append(tensor(zero_minus))
-        # c_op_list.append(tensor(zero_plus))
-        # c_op_list.append(tensor(N_minus))
         c_op_list.append(tensor(N_plus))
+
+        if mu < 0.99999:
+            zero_plus[0] = sp * np.sqrt(gamma_l * (1 - mu))
+            N_minus[-1] = sm * np.sqrt(gamma_l * (1 - mu))
+            c_op_list.append(tensor(zero_plus))
+            c_op_list.append(tensor(N_minus))
+
     return H, sz_list, sx_list, c_op_list
 
 
-def qutip_solver(H, psi0, tlist, c_op_list, sz_list, solver):
+def qutip_solver(H, psi0, tlist, c_op_list, sz_list, solver, ntraj=1000):
     # evolve and calculate expectation values
     if solver == "me":
         result = mesolve(H, psi0, tlist, c_op_list, sz_list, progress_bar=True)
     elif solver == "mc":
-        ntraj = 1000
         result = mcsolve(H, psi0, tlist, c_op_list, sz_list, ntraj, progress_bar=True)
 
     return result.expect
@@ -103,13 +110,15 @@ def unitaries(H, c_op_list, dt):
     K = len(c_op_list)
     U_ops = []
     if K==0:
-        U_ops.append((1j*H*dt).expm())
+        U_ops.append((-1j*H*dt).expm())
     else:
         prefactor = np.sqrt(1 / (2 * K))
         for op in c_op_list:
-            exponent = 1j * H * dt
+            exponent = -1j * H * dt
             if op.isherm == False:
                 exponent += (dt * K / 2) * (op * op - op.dag() * op)
+
+            # exponent += (dt * K / 2) * (op * op - op.dag() * op)
             extra = 1j * np.sqrt(K * dt) * op
             P1 = exponent + extra
             P2 = exponent - extra
@@ -138,7 +147,10 @@ def overlap(psi_list):
 @njit
 def alt_overlap(psi_list):
     matrix = psi_list.conj() @ psi_list.T
-    return matrix
+    return matrix# psi_list.append(basis(2,1))
+# for n in range(N-1):
+#     psi_list.append(basis(2,0))
+
 
 
 def orthogonalise(psi_list, U, zeroobj, rank):
@@ -156,7 +168,7 @@ def orthogonalise(psi_list, U, zeroobj, rank):
             g += g_unit
         norm+=g.norm()**2
         g_list.append(g)
-    g_list=[g/np.sqrt(norm) for g in g_list]
+    # g_list=[g/np.sqrt(norm) for g in g_list]
     return g_list
 
 def one_step(psis,U_ops,zeropsi,rank):
@@ -195,24 +207,15 @@ def expectations(psis,ops,normalise):
 solver = "me"  # use the ode solver
 # solver = "mc"   # use the monte-carlo solver
 
-N = 6 # number of spins
-# array of spin energy splittings and coupling strengths. here we use
-# uniform parameters, but in general we don't have too
-h = 0.1 * 2 * np.pi * np.ones(N)
-Jz = 0.1 * 2 * np.pi * np.ones(N)
-Jx = 0.1 * 2 * np.pi * np.ones(N)
+
+
+h = h_param* np.ones(N)
+Jz = Jz_param * np.ones(N)
+Jx = Jx_param * np.ones(N)
 # Jx = 0 * 2 * np.pi * np.ones(N)
-Jy = 0.1 * 2 * np.pi * np.ones(N)
-init='other'
-# dephasing rate
-# gamma = 0.01 * np.ones(N)
-dephase = 0
+Jy = Jy_param  * np.ones(N)
 gamma = dephase * np.ones(N)
-# leads coupling
 leads = np.zeros(2)
-# bath coupling
-bath_couple = 0.0025
-driving = 1
 leads[0] = bath_couple
 # driving
 leads[1] = driving
@@ -226,9 +229,6 @@ zero_ket=Qobj([[0], [0]])
 #     psi_list.append(basis(2,0))
 
 start=time.time()
-
-
-
 for n in range(N):
     if init=='xbasis':
         psi_list.append((basis(2, 0) + basis(2, 1)).unit())
@@ -245,119 +245,187 @@ for n in range(N):
 psi0 = tensor(psi_list)
 zeropsi=tensor(zero_list)
 # print(zeropsi)
-steps = 1000
-tlist, deltat = np.linspace(0, 500, steps, retstep=True)
-rank=64
+
 H, sz_list, sx_list, c_op_list = integrate_setup(N, h, Jx, Jy, Jz, gamma, leads)
 U_ops= unitaries(H,c_op_list,deltat)
 end=time.time()
 print('operators built! Time taken %.3f seconds' % (end-start))
 psis=[psi0]
 
-# visualise sparsity
-# loop_start=time.time()
-# for j in range(0,50):
-#     psis=one_step(psis,U_ops,zeropsi,rank)
-#     newend = time.time()
-#     start=time.time()
-#     norms=[psi.norm()**2 for psi in psis]
-#     norm=np.sum(norms)
-#     psi_list = [psi/np.sqrt(norm) for psi in psis]
-#     end=time.time()
-#     print('Normalisation done. Time taken %.5f seconds' % (end-start))
-# loop_end=time.time()
-# # psi_list = [psi for psi in psis]
-# print('50 steps done. Time taken %.5f seconds' % (loop_end - loop_start))
+def exact_sim(run_exact):
+    outfile_exact = './Data/exact:{}sites-init{}-{}h-{}Jx-{}Jy-{}Jz-{}t_max-{}steps-{}dephase-gamma{}-{}mu.npz'.format(
+        N, init, h_param, Jx_param, Jy_param, Jz_param, endtime, steps, dephase, bath_couple, driving)
+    if run_exact:
+        loop_start = time.time()
+        sz_expt = qutip_solver(H, psi0, tlist, c_op_list, sz_list+sx_list, "me")
+        loop_end=time.time()
+        expect_dict = dict()
+        expect_dict['expectations']=sz_expt
+        expect_dict['runtime']=loop_end-loop_start
+        print('loop time {}'.format(expect_dict['runtime']))
+        np.savez(outfile_exact, **expect_dict)
 
-# mat = overlap(psi_list)
-# print(np.sum(np.diag(mat)))
-# fig, ax = plt.subplots()
-# ax.matshow(mat.real, cmap='seismic')
-#
-# for (i, j), z in np.ndenumerate(mat.real):
-#     ax.text(j, i, '{:0.5f}'.format(z), ha='center', va='center')
-#
-#
-# # plt.spy(mat,markersize=2,precision=10**(-6))
-#
-# plt.show()
+def mc_sim(ntraj,run_mc):
+    outfile_mc = './Data/montecarlo:{}sites-init{}-{}h-{}Jx-{}Jy-{}Jz-{}t_max-{}steps-{}dephase-gamma{}-{}mu-{}ntraj.npz'.format(
+        N, init, h_param, Jx_param, Jy_param, Jz_param, endtime, steps, dephase, bath_couple, driving, ntraj)
+
+    if run_mc:
+        loop_start = time.time()
+        sz_expt = qutip_solver(H, psi0, tlist, c_op_list, sz_list+sx_list, "mc",ntraj)
+        loop_end=time.time()
+        expect_dict = dict()
+        expect_dict['expectations']=sz_expt
+        expect_dict['runtime']=loop_end-loop_start
+        print('loop time {}'.format(expect_dict['runtime']))
+        np.savez(outfile_mc, **expect_dict)
+def lowrank_sim(rank,run_lowrank):
+    outfile_lowrank = './Data/lowrank:{}sites-init{}-{}h-{}Jx-{}Jy-{}Jz-{}t_max-{}steps-{}dephase-gamma{}-{}mu-{}rank.npz'.format(
+        N, init, h_param, Jx_param, Jy_param, Jz_param, endtime, steps, dephase, bath_couple, driving, rank)
+    if run_lowrank:
+        loop_start=time.time()
+        psis = [psi0]
+        s_rank=[]
+        psi_times=[]
+        time_psis=[]
+        for j in tqdm(range(steps)):
+            # s_rank.append(expectations(psis,sz_list+sx_list))
+            time_psis.append(psis)
+            psis=one_step(psis,U_ops,zeropsi,rank)
+            # norms=[psi.norm()**2 for psi in psis]
+            # norm=np.sum(norms)
+            # psis = [psi/np.sqrt(norm) for psi in psis]
+        loop_end=time.time()
+        # psi_list = [psi for psi in psis]
+        print('Low rank propagation done. Time taken %.5f seconds' % (loop_end - loop_start))
+
+        for psis in time_psis:
+            s_rank.append(expectations(psis,sz_list+sx_list,False))
+        s_rank=np.array(s_rank)
+        expect_dict = dict()
+        expect_dict['expectations'] = s_rank
+        expect_dict['runtime'] = loop_end - loop_start
+        print('loop time {}'.format(expect_dict['runtime']))
+        np.savez(outfile_lowrank, **expect_dict)
 
 
-# print(psis)
+# exact_sim(run_exact)
+# mc_sim(ntraj,run_mc)
+# lowrank_sim(rank,run_lowrank)
+"""batch runs"""
+for N in range(12,15):
+    for dephase in [0,1e-4,1e-3,1e-2]:
+        for bath_couple in [1e-4,1e-3,1e-2]:
+            print('now running for {}-sites, {:.2f}-dephasing, {:.2f}-Gamma'.format(N,dephase,bath_couple))
+            h = h_param * np.ones(N)
+            Jz = Jz_param * np.ones(N)
+            Jx = Jx_param * np.ones(N)
+            # Jx = 0 * 2 * np.pi * np.ones(N)
+            Jy = Jy_param * np.ones(N)
+            gamma=dephase*np.ones(N)
+            leads = np.zeros(2)
+            leads[0] = bath_couple
+            # driving
+            leads[1] = driving
+            # driving
+            # intial state, first spin in state |1>, the rest in state |0>
+            psi_list = []
+            zero_list = []
+            zero_ket = Qobj([[0], [0]])
+            # psi_list.append(basis(2,1))
+            # for n in range(N-1):
+            #     psi_list.append(basis(2,0))
+
+            start = time.time()
+            for n in range(N):
+                if init == 'xbasis':
+                    psi_list.append((basis(2, 0) + basis(2, 1)).unit())
+                elif init == 'mixed':
+                    if n % 2 == 0:
+                        psi_list.append(basis(2, 0))
+                    else:
+                        psi_list.append(basis(2, 1))
+                else:
+                    psi_list.append(basis(2, 0))
+                zero_list.append(zero_ket)
+
+            psi0 = tensor(psi_list)
+            zeropsi = tensor(zero_list)
+            # print(zeropsi)
+            H, sz_list, sx_list, c_op_list = integrate_setup(N, h, Jx, Jy, Jz, gamma, leads)
+            U_ops = unitaries(H, c_op_list, deltat)
+            end = time.time()
+            print('operators built! Time taken %.3f seconds' % (end - start))
+            psis = [psi0]
+
+            exact_sim(run_exact)
+            for ntraj in [100,1000,5000,10000]:
+                print('now running for {}-sites, {:.2f}-dephasing, {:.2f}-Gamma'.format(N, dephase, bath_couple))
+                print('now running monte-carlo {}-trajectories'.format(ntraj))
+                mc_sim(ntraj, run_mc)
+            for rank in [2,4,8]:
+                print('now running for {}-sites, {:.2f}-dephasing, {:.2f}-Gamma'.format(N, dephase, bath_couple))
+                print('now running low-rank at rank {}'.format(rank))
+                lowrank_sim(rank, run_lowrank)
+
+# for rank in [2,4,8,16,32,64]:
 
 
-sz_expt = qutip_solver(H, psi0, tlist, c_op_list, sz_list+sx_list, solver)
-sz_expt_mc = qutip_solver(H, psi0, tlist, c_op_list, sz_list+sx_list, "mc")
-loop_start=time.time()
-s_rank=[]
-psi_times=[]
-time_psis=[]
-for j in tqdm(range(steps)):
-    # s_rank.append(expectations(psis,sz_list+sx_list))
-    time_psis.append(psis)
-    psis=one_step(psis,U_ops,zeropsi,rank)
-    # norms=[psi.norm()**2 for psi in psis]
-    # norm=np.sum(norms)
-    # psis = [psi/np.sqrt(norm) for psi in psis]
-loop_end=time.time()
-# psi_list = [psi for psi in psis]
-print('Low rank propagation done. Time taken %.5f seconds' % (loop_end - loop_start))
 
-for psis in time_psis:
-    s_rank.append(expectations(psis,sz_list+sx_list,False))
-s_rank=np.array(s_rank)
-print(s_rank.size)
-# print(np.array(s_rank))
-print(s_rank[:,0])
-fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 6))
-sz_lr = np.zeros(len(sz_expt[0]))
-sz_e = np.zeros(len(sz_expt[0]))
-sx_lr = np.zeros(len(sz_expt[0]))
-sx_e = np.zeros(len(sz_expt[0]))
-eps_z_lr=np.zeros(len(sz_expt[0]))
-eps_z_mc=np.zeros(len(sz_expt[0]))
-for n in range(N):
-    eps_z_lr+= np.sqrt((sz_expt[n]-s_rank[:,n])**2)
-    eps_z_mc+= np.sqrt((sz_expt[n]-sz_expt_mc[n])**2)
-    sz_lr += sz_expt[n]
-    sx_lr += sz_expt[N+n]
-    sx_e+=s_rank[:,N + n]
-    sz_e+=s_rank[:,n]
-for n in range(N):
-    ax1.plot(tlist, np.real(sz_expt[n]), label='$\\langle\\sigma_z^{(%d)}\\rangle$' % n)
-    ax1.plot(tlist, np.real(s_rank[:,n]), linestyle='--',label='Low-rank $\\langle\\sigma_z^{(%d)}\\rangle$' % n)
-    ax2.plot(tlist, np.real(sz_expt[N + n]), label='$\\langle\\sigma_x^{(%d)}\\rangle$' % n)
-    ax2.plot(tlist, np.real(s_rank[:,N + n]),linestyle='--', label='Low-rank $\\langle\\sigma_x^{(%d)}\\rangle$' % n)
-# ax1.legend(loc=0)
-ax2.set_xlabel('Time [ns]')
-ax1.set_ylabel('$\\langle\sigma_z\\rangle$')
-ax2.set_ylabel('$\\langle\sigma_x\\rangle$')
+
+# print(s_rank.size)
+# # print(np.array(s_rank))
+# print(s_rank[:,0])
+# fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 6))
+# sz_lr = np.zeros(len(sz_expt[0]))
+# sz_e = np.zeros(len(sz_expt[0]))
+# sx_lr = np.zeros(len(sz_expt[0]))
+# sx_e = np.zeros(len(sz_expt[0]))
+# eps_z_lr=np.zeros(len(sz_expt[0]))
+# eps_z_mc=np.zeros(len(sz_expt[0]))
+# for n in range(N):
+#     eps_z_lr+= np.sqrt((sz_expt[n]-s_rank[:,n])**2)
+#     eps_z_mc+= np.sqrt((sz_expt[n]-sz_expt_mc[n])**2)
+#     sz_lr += sz_expt[n]
+#     sx_lr += sz_expt[N+n]
+#     sx_e+=s_rank[:,N + n]
+#     sz_e+=s_rank[:,n]
+
+# fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 6))
+# for n in range(N):
+#     ax1.plot(tlist, np.real(sz_expt[n]), label='$\\langle\\sigma_z^{(%d)}\\rangle$' % n)
+#     ax1.plot(tlist, np.real(s_rank[:,n]), linestyle='--',label='Low-rank $\\langle\\sigma_z^{(%d)}\\rangle$' % n)
+#     ax2.plot(tlist, np.real(sz_expt[N + n]), label='$\\langle\\sigma_x^{(%d)}\\rangle$' % n)
+#     ax2.plot(tlist, np.real(s_rank[:,N + n]),linestyle='--', label='Low-rank $\\langle\\sigma_x^{(%d)}\\rangle$' % n)
+# # ax1.legend(loc=0)
+# ax2.set_xlabel('Time [ns]')
+# ax1.set_ylabel('$\\langle\sigma_z\\rangle$')
+# ax2.set_ylabel('$\\langle\sigma_x\\rangle$')
 # ax2.legend()
 
-ax1.set_title('Dynamics of a Heisenberg spin chain')
-plt.show()
-
-# plt.title('simulation error')
-plt.plot(tlist,eps_z_lr, label='low-rank')
-plt.plot(tlist,eps_z_mc, label='monte-carlo')
-plt.legend()
-plt.xlabel('Time')
-plt.ylabel('$\\epsilon(t)$')
-plt.show()
-
-plt.subplot(211)
-plt.plot(tlist, sz_e,label='low-rank approx')
-plt.plot(tlist, sz_lr, linestyle='dashed',color='black',label='exact')
-plt.legend()
-plt.ylabel('$\\langle\sigma_z\\rangle$')
-
-plt.subplot(212)
-plt.plot(tlist, sx_lr,label='low-rank approx')
-plt.plot(tlist, sx_e, linestyle='dashed',color='black',label='exact')
-plt.legend()
-plt.ylabel('$\\langle\sigma_x\\rangle$')
-plt.xlabel('Time [ns]')
-plt.show()
+# ax1.set_title('Dynamics of a Heisenberg spin chain')
+# plt.show()
+#
+# # plt.title('simulation error')
+# plt.plot(tlist,eps_z_lr, label='low-rank')
+# plt.plot(tlist,eps_z_mc, label='monte-carlo')
+# plt.legend()
+# plt.xlabel('Time')
+# plt.ylabel('$\\epsilon(t)$')
+# plt.show()
+#
+# plt.subplot(211)
+# plt.plot(tlist, sz_e,label='low-rank approx')
+# plt.plot(tlist, sz_lr, linestyle='dashed',color='black',label='exact')
+# plt.legend()
+# plt.ylabel('$\\langle\sigma_z\\rangle$')
+#
+# plt.subplot(212)
+# plt.plot(tlist, sx_lr,label='low-rank approx')
+# plt.plot(tlist, sx_e, linestyle='dashed',color='black',label='exact')
+# plt.legend()
+# plt.ylabel('$\\langle\sigma_x\\rangle$')
+# plt.xlabel('Time [ns]')
+# plt.show()
 #
 # final_sz = [sz_expt[n][-1] for n in range(N)]
 # plt.plot(range(N), final_sz)

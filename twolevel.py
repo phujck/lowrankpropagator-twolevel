@@ -227,7 +227,7 @@ epsilon = 1
 delta = 1
 gamma = 0.1
 gamma1 = gamma
-gamma2 = 1e-10
+gamma2 = 0.5
 rho_0 = fock_dm(2, 0)
 psi_0 = basis(2, 0)
 psis = one_step([psi_0], epsilon, delta, gamma, dt)
@@ -246,7 +246,7 @@ sx = sigmax()
 expect = evolution(delta, epsilon, gamma1, gamma2, rho_0, times)
 expect_unaltered = evolution(delta, epsilon, 0, 0, rho_0, times)
 
-for rank in [2,4]:
+for rank in [1,2]:
     psi_list = [psi_0]
     z_track = []
     x_track = []
@@ -274,21 +274,24 @@ for rank in [2,4]:
     # for (i, j), z in np.ndenumerate(mat.real):
     #     ax.text(j, i, '{:0.5f}'.format(z), ha='center', va='center')
     plt.subplot(211)
+    plt.grid(True)
     plt.plot(times, z_track, label='rank %s' % rank)
 
     plt.subplot(212)
+    plt.grid(True)
+
     plt.plot(times, x_track, label='rank %s' % rank)
 
 plt.subplot(211)
 plt.plot(times, expect[1], label='Lindblad', color='black', linestyle='--')
 plt.plot(times, expect_unaltered[1], label='Dissipation free', linestyle='-.', color='gray')
 # plt.xlabel('Time')
-plt.ylabel('$\\langle S_Z\\rangle$')
+plt.ylabel('$\\langle \sigma_z\\rangle$')
 
 plt.subplot(212)
 plt.plot(times, expect[0], label='Lindblad', color='black', linestyle='--')
 plt.plot(times, expect_unaltered[0], label='dissipation free', linestyle='-.', color='gray')
 plt.xlabel('Time')
-plt.ylabel('$\\langle S_X\\rangle$')
+plt.ylabel('$\\langle \sigma_x\\rangle$')
 plt.legend()
 plt.show()
