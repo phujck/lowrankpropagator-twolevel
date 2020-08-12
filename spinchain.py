@@ -310,62 +310,62 @@ def lowrank_sim(rank,run_lowrank):
 
 # exact_sim(run_exact)
 # mc_sim(ntraj,run_mc)
-# lowrank_sim(rank,run_lowrank)
+lowrank_sim(rank,run_lowrank)
 """batch runs"""
-for N in range(2,13):
-    for dephase in [0,1e-4,1e-3]:
-        for bath_couple in [1e-4,1e-3]:
-            print('now running for {}-sites, {:.2f}-dephasing, {:.2f}-Gamma'.format(N,dephase,bath_couple))
-            h = h_param * np.ones(N)
-            Jz = Jz_param * np.ones(N)
-            Jx = Jx_param * np.ones(N)
-            # Jx = 0 * 2 * np.pi * np.ones(N)
-            Jy = Jy_param * np.ones(N)
-            gamma=dephase*np.ones(N)
-            leads = np.zeros(2)
-            leads[0] = bath_couple
-            # driving
-            leads[1] = driving
-            # driving
-            # intial state, first spin in state |1>, the rest in state |0>
-            psi_list = []
-            zero_list = []
-            zero_ket = Qobj([[0], [0]])
-            # psi_list.append(basis(2,1))
-            # for n in range(N-1):
-            #     psi_list.append(basis(2,0))
-
-            start = time.time()
-            for n in range(N):
-                if init == 'xbasis':
-                    psi_list.append((basis(2, 0) + basis(2, 1)).unit())
-                elif init == 'mixed':
-                    if n % 2 == 0:
-                        psi_list.append(basis(2, 0))
-                    else:
-                        psi_list.append(basis(2, 1))
-                else:
-                    psi_list.append(basis(2, 0))
-                zero_list.append(zero_ket)
-
-            psi0 = tensor(psi_list)
-            zeropsi = tensor(zero_list)
-            # print(zeropsi)
-            H, sz_list, sx_list, c_op_list = integrate_setup(N, h, Jx, Jy, Jz, gamma, leads)
-            U_ops = unitaries(H, c_op_list, deltat)
-            end = time.time()
-            print('operators built! Time taken %.3f seconds' % (end - start))
-            psis = [psi0]
-
-            exact_sim(run_exact)
-            for ntraj in [100,1000,5000]:
-                print('now running for {}-sites, {:.2f}-dephasing, {:.2f}-Gamma'.format(N, dephase, bath_couple))
-                print('now running monte-carlo {}-trajectories'.format(ntraj))
-                mc_sim(ntraj, run_mc)
-            for rank in [2,4,8]:
-                print('now running for {}-sites, {:.2f}-dephasing, {:.2f}-Gamma'.format(N, dephase, bath_couple))
-                print('now running low-rank at rank {}'.format(rank))
-                lowrank_sim(rank, run_lowrank)
+# for N in [12]:
+#     for dephase in [0,1e-4]:
+#         for bath_couple in [1e-2,1e-3,1e-4]:
+#             print('now running for {}-sites, {:.2f}-dephasing, {:.2f}-Gamma'.format(N,dephase,bath_couple))
+#             h = h_param * np.ones(N)
+#             Jz = Jz_param * np.ones(N)
+#             Jx = Jx_param * np.ones(N)
+#             # Jx = 0 * 2 * np.pi * np.ones(N)
+#             Jy = Jy_param * np.ones(N)
+#             gamma=dephase*np.ones(N)
+#             leads = np.zeros(2)
+#             leads[0] = bath_couple
+#             # driving
+#             leads[1] = driving
+#             # driving
+#             # intial state, first spin in state |1>, the rest in state |0>
+#             psi_list = []
+#             zero_list = []
+#             zero_ket = Qobj([[0], [0]])
+#             # psi_list.append(basis(2,1))
+#             # for n in range(N-1):
+#             #     psi_list.append(basis(2,0))
+#
+#             start = time.time()
+#             for n in range(N):
+#                 if init == 'xbasis':
+#                     psi_list.append((basis(2, 0) + basis(2, 1)).unit())
+#                 elif init == 'mixed':
+#                     if n % 2 == 0:
+#                         psi_list.append(basis(2, 0))
+#                     else:
+#                         psi_list.append(basis(2, 1))
+#                 else:
+#                     psi_list.append(basis(2, 0))
+#                 zero_list.append(zero_ket)
+#
+#             psi0 = tensor(psi_list)
+#             zeropsi = tensor(zero_list)
+#             # print(zeropsi)
+#             H, sz_list, sx_list, c_op_list = integrate_setup(N, h, Jx, Jy, Jz, gamma, leads)
+#             U_ops = unitaries(H, c_op_list, deltat)
+#             end = time.time()
+#             print('operators built! Time taken %.3f seconds' % (end - start))
+#             psis = [psi0]
+#
+#             # exact_sim(run_exact)
+#             for ntraj in [10000]:
+#                 print('now running for {}-sites, {:.2f}-dephasing, {:.2f}-Gamma'.format(N, dephase, bath_couple))
+#                 print('now running monte-carlo {}-trajectories'.format(ntraj))
+#                 mc_sim(ntraj, run_mc)
+            # for rank in [1,2,4,8]:
+            #     print('now running for {}-sites, {:.2f}-dephasing, {:.2f}-Gamma'.format(N, dephase, bath_couple))
+            #     print('now running low-rank at rank {}'.format(rank))
+            #     lowrank_sim(rank, run_lowrank)
 
 # for rank in [2,4,8,16,32,64]:
 

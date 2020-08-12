@@ -11,7 +11,9 @@ params = {
     'ytick.labelsize': 22,
     'figure.figsize': [2 * 3.375, 2 * 3.375],
     'text.usetex': True,
-    'figure.figsize': (16, 12)
+    'figure.figsize': (16, 12),
+    'lines.linewidth': 2.5
+
 }
 
 plt.rcParams.update(params)

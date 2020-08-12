@@ -10,7 +10,7 @@ Jy_param=0.1*2*np.pi
 init='xbasis'
 # dephasing rate
 # gamma = 0.01 * np.ones(N)
-dephase = 0
+dephase = 1e-4
 # bath coupling
 bath_couple = 1e-4
 driving = 1
@@ -18,8 +18,9 @@ steps = 3000
 endtime=100
 tlist, deltat = np.linspace(0, endtime, steps, retstep=True)
 
-rank=2
-ntraj = 10000
+rank=1
+rank2=4
+ntraj = 5000
 run_lowrank=True
 run_exact=True
 run_mc=True
