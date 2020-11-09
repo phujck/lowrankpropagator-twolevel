@@ -35,7 +35,7 @@ plt.rcParams.update(params)
 # assignment here, and uses every core it can get its hands on. To fix that I'd have to go digging into the
 # multiprocessing library files, which doesn't seem best pracrice. Just worth bearing in mind that MC is getting
 # access to a lot more resources!
-threads = 20
+threads = 8
 os.environ['NUMEXPR_MAX_THREADS'] = '{}'.format(threads)
 os.environ['NUMEXPR_NUM_THREADS'] = '{}'.format(threads)
 os.environ['OMP_NUM_THREADS'] = '{}'.format(threads)
@@ -122,10 +122,12 @@ def integrate_setup(N, h, Jx, Jy, Jz, gamma, leads):
 
 def qutip_solver(H, psi0, tlist, c_op_list, sz_list, solver, ntraj=1000):
     # evolve and calculate expectation values
+    # print(Options())
+    options = Options(num_cpus=4)
     if solver == "me":
-        result = mesolve(H, psi0, tlist, c_op_list, sz_list, progress_bar=True)
+        result = mesolve(H, psi0, tlist, c_op_list, sz_list, progress_bar=True, options=options)
     elif solver == "mc":
-        result = mcsolve(H, psi0, tlist, c_op_list, sz_list, ntraj, progress_bar=True)
+        result = mcsolve(H, psi0, tlist, c_op_list, sz_list, ntraj, progress_bar=True, options=options)
 
     return result.expect
 
@@ -371,8 +373,8 @@ psis = [psi0]
 
 """batch runs"""
 for N in [12]:
-    for dephase in [1e-4]:
-        for bath_couple in [1e-2,1e-3,1e-4]:
+    for dephase in [0]:
+        for bath_couple in [1e-4,1e-3,1e-2]:
             print('now running for {}-sites, {:.2e}-dephasing, {:.2e}-Gamma'.format(N, dephase, bath_couple))
             h = h_param * np.ones(N)
             Jz = Jz_param * np.ones(N)
@@ -416,14 +418,14 @@ for N in [12]:
             psis = [psi0]
 
             # exact_sim(run_exact)
-            for ntraj in [500]:
-                print('now running for {}-sites, {:.2e}-dephasing, {:.2e}-Gamma'.format(N, dephase, bath_couple))
-                print('now running monte-carlo {}-trajectories'.format(ntraj))
-                mc_sim(ntraj, run_mc)
-            # for rank in [1,2,4,8]:
+            # for ntraj in [101]:
             #     print('now running for {}-sites, {:.2e}-dephasing, {:.2e}-Gamma'.format(N, dephase, bath_couple))
-            #     print('now running low-rank at rank {}'.format(rank))
-            #     lowrank_sim(rank, run_lowrank)
+            #     print('now running monte-carlo {}-trajectories'.format(ntraj))
+            #     mc_sim(ntraj, run_mc)
+            for rank in [12]:
+                print('now running for {}-sites, {:.2e}-dephasing, {:.2e}-Gamma'.format(N, dephase, bath_couple))
+                print('now running low-rank at rank {}'.format(rank))
+                lowrank_sim(rank, run_lowrank)
 
 """Old Plotting Code. The New Code saves these expectations for plotting in analysis.py"""
 # print(s_rank.size)

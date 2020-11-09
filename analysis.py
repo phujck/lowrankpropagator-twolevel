@@ -7,11 +7,11 @@ import time
 from params import *
 import os
 params = {
-    'axes.labelsize': 30,
+    'axes.labelsize': 38,
     # 'legend.fontsize': 28,
     'legend.fontsize': 23,
-    'xtick.labelsize': 18,
-    'ytick.labelsize': 18,
+    'xtick.labelsize': 25,
+    'ytick.labelsize': 25,
     'figure.figsize': [2 * 3.375, 2 * 3.375],
     'text.usetex': True,
     'figure.figsize': (20, 12),
@@ -95,9 +95,23 @@ plt.ylabel('$\\langle\\hat{\\sigma}_z^{(j)}\\rangle$')
 plt.xlabel('Time')
 plt.grid(True)
 plt.savefig('./Plots/lowrankvsmontecarlo' + fig_params,bbox_inches='tight')
+plt.savefig('./Plots/spinchainexamplenew.pdf',bbox_inches='tight')
+
 plt.show()
 
+eps_z_mc=0
+for n in range(N):
+    eps_z_mc += np.sum((s_exact[n] - s_mc[n]) ** 2) / np.sum(s_exact[n] ** 2)
+eps_z_lr = 0
+for n in range(N):
+    eps_z_lr += np.sum((s_exact[n] - s_lowrank[:, n]) ** 2)/np.sum(s_exact[n]**2)
 
+eps_z_mc=np.sqrt(eps_z_mc)
+eps_z_lr=np.sqrt(eps_z_lr)
+print(eps_z_mc)
+print(eps_z_lr)
+print('ERT error is {:.4f} '.format(eps_z_lr))
+print('WMC error is {:.4f} '.format(eps_z_mc))
 outfile_exact = './Data/exact:{}sites-init{}-{}h-{}Jx-{}Jy-{}Jz-{}t_max-{}steps-{}dephase-gamma{}-{}mu.npz'.format(
     N, init, h_param, Jx_param, Jy_param, Jz_param, endtime, steps, dephase, bath_couple, driving)
 expectations_exact = np.load(outfile_exact)
@@ -122,7 +136,7 @@ for factor in [2,3,4]:
     lr_times=[]
     mc_eps=[]
     lr_eps=[]
-    for ntraj in [500,1000,5000,10000]:
+    for ntraj in [101,501,1001,5001]:
         outfile_mc = './Data/montecarlo:{}sites-init{}-{}h-{}Jx-{}Jy-{}Jz-{}t_max-{}steps-{}dephase-gamma{}-{}mu-{}ntraj.npz'.format(
             N, init, h_param, Jx_param, Jy_param, Jz_param, endtime, steps, dephase, bath_couple, driving, ntraj)
         expectations_mc = np.load(outfile_mc)
@@ -158,12 +172,14 @@ if factor == 4:
 plt.vlines(exact_time, ymin=10 ** -3, ymax=10 ** 2, linestyles='dashed', colors='black',
            label='Exact Simulation Time')
 plt.ylim(10 ** -3, 10 ** 2)
+plt.xlim(10**2,1.5*10**4)
+
 # plt.tick_params(axis='x', which='both',labelsize=0, length=0)
-# plt.legend()
+plt.legend()
 
 # plt.savefig('./Plots/erroslowrankvsmontecarlo' + fig_params, bbox_inches='tight')
 # plt.show()
-exact_times=[]
+# exact_times=[]
 plt.subplot(212)
 for newfactor in [4]:
     if newfactor==0:
@@ -179,7 +195,7 @@ for newfactor in [4]:
             N, init, h_param, Jx_param, Jy_param, Jz_param, endtime, steps, dephase, bath_couple, driving)
         expectations_exact = np.load(outfile_exact)
         s_exact = expectations_exact['expectations']
-        exact_times.append(expectations_exact['runtime'])
+        # exact_times.append(expectations_exact['runtime'])
         print('exact runtime is {:.2f} seconds'.format(expectations_exact['runtime']))
 
         # s_exact=expectations_mc['expectations']
@@ -227,14 +243,15 @@ plt.xlabel('Runtime(s)')
 exact_time=np.mean(exact_times)
 plt.vlines(exact_time,ymin=10**-3,ymax=10**2,linestyles='dashed',colors='black',label='Exact Simulation Time')
 plt.ylim(10**-2,10**2)
+plt.xlim(10**2,1.5*10**4)
 plt.grid(True)
 plt.ylabel('$\\mathcal{E}$')
 # plt.plot(mc_times,mc_eps,color=color,linestyle='dashed',marker="^",label='Monte-Carlo  $\\Gamma=10^{-%d}$' % factor)
 # plt.loglog(mc_times,mc_eps,color=color,linestyle='dashed',marker="^",label='Monte-Carlo  $\\Gamma=10^{-%d}$' % factor)
-plt.legend()
+# plt.legend()
 
 plt.savefig('./Plots/erroslowrankvsmontecarlowithdephase' + fig_params,bbox_inches='tight')
-plt.savefig('./Plots/errorscombined',bbox_inches='tight')
+plt.savefig('./Plots/errorscombined.pdf',bbox_inches='tight')
 plt.tight_layout()
 plt.show()
 
@@ -311,3 +328,98 @@ plt.show()
 # plt.savefig('./Plots/erroslowrankvsmontecarlowithdephase' + fig_params,bbox_inches='tight')
 # plt.tight_layout()
 # plt.show()
+
+params = {
+    'axes.labelsize': 38,
+    # 'legend.fontsize': 28,
+    'legend.fontsize': 23,
+    'xtick.labelsize': 25,
+    'ytick.labelsize': 25,
+    # 'figure.figsize': [2 * 3.375, 2 * 3.375],
+    'text.usetex': True,
+    'figure.figsize': (12, 16),
+    'lines.linewidth': 3,
+    'lines.markersize': 15
+}
+
+plt.rcParams.update(params)
+fig,axes=plt.subplots(nrows=3,ncols=2,sharey=True,sharex=True)
+fig.tight_layout()
+kappa_axes=[(0,0),(1,1e-4)]
+gamma_axes=[(0,1e-4),(1,1e-3), (2,1e-2)]
+
+for a,kappa_var in kappa_axes:
+    for b,gamma_var in gamma_axes:
+        gamma_factor = int(np.log10(10*gamma_var))
+        if kappa_var >0:
+            kappa_factor=int(np.log10(10*kappa_var))
+        else:
+            kappa_factor=0
+        ax=axes[b,a]
+        if a==0:
+            ax.set_ylabel('$\\mathcal{E}$')
+        if b==2:
+            ax.set_xlabel('Runtime (s)')
+        ax.grid(True)
+        ax.set_xlim(0.9*10**2,2*10**4)
+        dephase = kappa_var
+        bath_couple=gamma_var
+        outfile_exact = './Data/exact:{}sites-init{}-{}h-{}Jx-{}Jy-{}Jz-{}t_max-{}steps-{}dephase-gamma{}-{}mu.npz'.format(
+            N, init, h_param, Jx_param, Jy_param, Jz_param, endtime, steps, dephase, bath_couple, driving)
+        expectations_exact = np.load(outfile_exact)
+        s_exact = expectations_exact['expectations']
+        # exact_times.append(expectations_exact['runtime'])
+        print('exact runtime is {:.2f} seconds'.format(expectations_exact['runtime']))
+
+        # s_exact=expectations_mc['expectations']
+
+        mc_times = []
+        lr_times = []
+        mc_eps = []
+        lr_eps = []
+        for ntraj in [101,501, 1001, 5001]:
+            outfile_mc = './Data/montecarlo:{}sites-init{}-{}h-{}Jx-{}Jy-{}Jz-{}t_max-{}steps-{}dephase-gamma{}-{}mu-{}ntraj.npz'.format(
+                N, init, h_param, Jx_param, Jy_param, Jz_param, endtime, steps, dephase, bath_couple, driving, ntraj)
+            expectations_mc = np.load(outfile_mc)
+
+            s_mc = expectations_mc['expectations']
+            mc_times.append(expectations_mc['runtime'])
+            eps_z_mc = 0
+            for n in range(N):
+                eps_z_mc += np.sum((s_exact[n] - s_mc[n]) ** 2) / np.sum(s_exact[n] ** 2)
+            mc_eps.append(np.sqrt(eps_z_mc))
+            # print(mc_eps)color = cmap((float(xx)-7)/45)
+        for rank in [1, 2, 4, 8,12]:
+            outfile_lowrank = './Data/lowrank:{}sites-init{}-{}h-{}Jx-{}Jy-{}Jz-{}t_max-{}steps-{}dephase-gamma{}-{}mu-{}rank.npz'.format(
+                N, init, h_param, Jx_param, Jy_param, Jz_param, endtime, steps, dephase, bath_couple, driving, rank)
+            expectations_lowrank = np.load(outfile_lowrank)
+            s_lowrank = expectations_lowrank['expectations']
+            lr_times.append(expectations_lowrank['runtime'])
+            eps_z_lr = 0
+            for n in range(N):
+                eps_z_lr += np.sum((s_exact[n] - s_lowrank[:, n]) ** 2) / np.sum(s_exact[n] ** 2)
+            lr_eps.append(np.sqrt(eps_z_lr))
+
+
+        ax.loglog(lr_times, lr_eps, color='blue', marker="o", label='ERT')
+        ax.loglog(mc_times, mc_eps, color='red', linestyle='dashed', marker="^",
+                   label='Monte-Carlo')
+        if a==1 and b==0:
+            ax.legend()
+        if b==0:
+            if kappa_factor !=0:
+                ax.annotate('$\\gamma=10^{%d}h,\\Gamma=10^{%d}h$' % (kappa_factor, gamma_factor), xy=(0.05, 0.6), xycoords='axes fraction', fontsize=25)
+            else:
+                ax.annotate('$\\gamma=0,\\Gamma=10^{%d}h$' % (gamma_factor), xy=(0.05, 0.6), xycoords='axes fraction', fontsize=25)
+
+        else:
+            if kappa_factor !=0:
+                ax.annotate('$\\gamma=10^{%d}h,\\Gamma=10^{%d}h$' % (kappa_factor, gamma_factor), xy=(0.05, 0.05), xycoords='axes fraction', fontsize=25)
+            else:
+                ax.annotate('$\\gamma=0,\\Gamma=10^{%d}h$' % (gamma_factor), xy=(0.05, 0.05), xycoords='axes fraction', fontsize=25)
+
+
+        # ax.legend()
+# fig.ylabel('$\\mathcal{E}$')
+plt.savefig('./Plots/spinchainerrorsubplotsnew.pdf',bbox_inches='tight')
+plt.show()
