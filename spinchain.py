@@ -124,6 +124,7 @@ def qutip_solver(H, psi0, tlist, c_op_list, sz_list, solver, ntraj=1000):
     # evolve and calculate expectation values
     # print(Options())
     options = Options(num_cpus=4)
+    print(options)
     if solver == "me":
         result = mesolve(H, psi0, tlist, c_op_list, sz_list, progress_bar=True, options=options)
     elif solver == "mc":
@@ -373,8 +374,8 @@ psis = [psi0]
 
 """batch runs"""
 for N in [12]:
-    for dephase in [0]:
-        for bath_couple in [1e-4,1e-3,1e-2]:
+    for dephase in [1e-4]:
+        for bath_couple in [1e-2]:
             print('now running for {}-sites, {:.2e}-dephasing, {:.2e}-Gamma'.format(N, dephase, bath_couple))
             h = h_param * np.ones(N)
             Jz = Jz_param * np.ones(N)
@@ -418,11 +419,11 @@ for N in [12]:
             psis = [psi0]
 
             # exact_sim(run_exact)
-            # for ntraj in [101]:
+            # for ntraj in [101,501,1001,5001]:
             #     print('now running for {}-sites, {:.2e}-dephasing, {:.2e}-Gamma'.format(N, dephase, bath_couple))
             #     print('now running monte-carlo {}-trajectories'.format(ntraj))
             #     mc_sim(ntraj, run_mc)
-            for rank in [12]:
+            for rank in [2,4,8,12]:
                 print('now running for {}-sites, {:.2e}-dephasing, {:.2e}-Gamma'.format(N, dephase, bath_couple))
                 print('now running low-rank at rank {}'.format(rank))
                 lowrank_sim(rank, run_lowrank)

@@ -18,7 +18,7 @@ steps = 3000
 endtime=100
 tlist, deltat = np.linspace(0, endtime, steps, retstep=True)
 
-rank=16
+rank=1
 rank2=4
 ntraj = 5001
 run_lowrank=True
